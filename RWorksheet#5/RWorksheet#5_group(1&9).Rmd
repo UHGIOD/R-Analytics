@@ -18,6 +18,8 @@ library(rvest)
 library(httr)
 library(dplyr) 
 library(polite)
+library(stringr)
+
   
 polite::use_manners(save_as = 'polite_scrape.R')
 
@@ -50,13 +52,12 @@ list_year_ep <- scrape(session) %>%
   html_nodes('span.sc-479faa3c-8.bNrEFi.cli-title-metadata-item
 ') %>% 
   html_text
- 
 years_only <- c()
+
 for (i in seq(1, length(list_year_ep), by = 3)) {
   years_only <- c(years_only, list_year_ep[i])
-}
+} 
 Year <- years_only[1:50]
- 
 
 ep_only <- c()
 for (i in seq(2, length(list_year_ep), by = 3)) {
@@ -64,10 +65,11 @@ for (i in seq(2, length(list_year_ep), by = 3)) {
 }
 Episode <- ep_only[1:50]
 
+df_title_ep <- data.frame(Episode, Year)
 
-df_title_ep <- data.frame(Episode,Year)
-colnames(df_title_ep) <- c("Number Of Episodes","Year Released") 
+df_title_ep$Year <- gsub("^(\\d{4}).*", "\\1", df_title_ep$Year)
 
+colnames(df_title_ep) <- c("Number Of Episodes", "Year Released") 
 
 list_rating <- scrape(session) %>%
   html_nodes('span.ipc-rating-star.ipc-rating-star--base.ipc-rating-star--imdb.ratingGroup--imdb-rating') %>% 
@@ -83,6 +85,7 @@ wholeRATING$Vote_Count <- gsub(".*\\(([^)]+)\\)", "\\1", list_rating[1:50])
 df_rating_vote <- wholeRATING
 colnames(df_rating_vote) <- c("Rating","Vote Count") 
 
+
 final_df <- cbind(show_df, df_rating_vote,df_title_ep )
 final_df
 ```
@@ -91,43 +94,121 @@ From the 50 tv shows, select at least 5 tv shows to scrape the user reviews that
 reviewer’s name, date of reviewed, user rating, title of the review, and text reviews.
  
 ```{r}
-
+ 
 tv_show_urls <- c(
-  "https://www.imdb.com/title/tt0081846/reviews",  #COSMOS
-  "https://www.imdb.com/title/tt0903747/reviews", #BREAKING BAD
-  "https://www.imdb.com/title/tt0185906/reviews", # BAND OF BROTHERS
-  "https://www.imdb.com/title/tt7366338/reviews", #CHERNOBYL
-  "https://www.imdb.com/title/tt0417299/reviews" #Avatar: The Last Airbender
+  "https://www.imdb.com/title/tt0081846/reviews",  # COSMOS
+  "https://www.imdb.com/title/tt0903747/reviews",  # BREAKING BAD
+  "https://www.imdb.com/title/tt0185906/reviews",  # BAND OF BROTHERS
+  "https://www.imdb.com/title/tt7366338/reviews",  # CHERNOBYL
+  "https://www.imdb.com/title/tt0417299/reviews"   # Avatar: The Last Airbender
 )
 
-all_reviews <- list()
-
+all_shows<-list()
+ 
 for (url in tv_show_urls) {
-  # Read HTML content
   page <- read_html(url)
-  
+
   reviewers_name <- page %>% html_nodes(".display-name-link") %>% html_text()
   dates <- page %>% html_nodes("span.review-date") %>% html_text()
   user_ratings <- page %>% html_nodes("span.rating-other-user-rating") %>% html_text()
   text_reviews <- page %>% html_nodes("div.text") %>% html_text()
-  
-  reviews_df <- data.frame(
-    Reviewer_Name = reviewers_name[1:5],
-    Date = dates[1:5],
-    User_Rating = user_ratings[1:5],
-    Text_Review = text_reviews[1:5],
-    stringsAsFactors = FALSE
+
+  tvshow_reviews_df <- data.frame(
+    Reviewer_Name = reviewers_name[1:25],
+    Date = dates[1:25],
+    User_Rating = user_ratings[1:25],
+    Text_Review = text_reviews[1:25]
   )
-  
-   all_reviews[[url]] <- reviews_df
+all_shows[[url]] <- tvshow_reviews_df
+
 }
-
-final_reviews_df <- do.call(rbind, all_reviews)
+final_reviews_df <- do.call(rbind, all_shows)
 colnames(final_reviews_df) <- c("Name", "Date of Review", "User Rating", "Text Reviews")
-
 rownames(final_reviews_df) <- NULL
+
 
 final_reviews_df
 ```
+3. Create a time series graph for the tv shows released by year. Which year has the most number of tv
+shows released?
+
+```{r}
+
+ library(ggplot2)
+
+ggplot(final_df, aes(x = Year, y = Episode, group = 1)) +
+  geom_line(color = "blue") +
+  geom_point(color = "red") +
+  labs(title = "TV Shows Released by Year",
+       x = "Year Released",
+       y = "Number of TV Shows") +
+  theme_minimal()
+```
+
+
+
+4. Select 3 products from Amazon of the same category. Extract the price, description, ratings and
+reviews of each product.
+
+```{r}
+url<-"https://www.amazon.com/s?k=tee+back+tank+tops&crid=1OB1A9SM5CVRK&sprefix=%2Caps%2C456&ref=nb_sb_ss_recent_1_0_recent"
+
+session<-bow(url, user_agent = "Educational")
+session
+
+prices<- character(0)
+ratings<- character(0)
+
+prices<-scrape(session)%>%
+  html_nodes('span.a-price-whole')%>%
+  html_text
+
+ratings<-scrape(session)%>%
+  html_nodes('span.a-icon-alt')%>%
+  html_text
+
+prices_ratings<-data.frame(prices[2:4],
+                           ratings[2:4]
+                          
+                           )
+ 
+
+colnames(prices_ratings) <- c("Price", "Overall Rating");
+ 
+teeback_urls<-c(
+  "https://www.amazon.com/TELALEO-Athletic-Racerback-Activewear-Sleeveless/dp/B08T1Z7FP1/ref=sr_1_5?crid=1OB1A9SM5CVRK&keywords=tee+back+tank+tops&qid=1701518421&sprefix=%2Caps%2C456&sr=8-5",#6, 5,or 3 pack
+  "https://www.amazon.com/Aeuui-Workout-Racerback-Shirts-Clothes/dp/B088CYZNKS/ref=sr_1_6?crid=1OB1A9SM5CVRK&keywords=tee+back+tank+tops&qid=1701518421&sprefix=%2Caps%2C456&sr=8-6",#Verdusa Women
+  "https://www.amazon.com/SOLY-HUX-Womens-Sleeveless-Shirts/dp/B0BYD8H1DZ/ref=sr_1_8?crid=1OB1A9SM5CVRK&keywords=tee+back+tank+tops&qid=1701518421&sprefix=%2Caps%2C456&sr=8-8"#SOLY HUX
+)
+
+all_reviews<-list()
+ 
+for(url in teeback_urls){
+  page<-read_html(url)
+  
+user_comment<-page%>%html_nodes('span.a-size-base.review-text')%>%
+    html_text()
+
+
+user_descr<-page%>%html_nodes('span.a-list-item.a-size-base.a-color-base')%>%
+  html_text()
+
+    user_comment_cleaned <- str_trim(user_comment[2:4])
+
+  reviews.df<-data.frame(user_comment_cleaned,
+                         user_descr[2:4])
+all_reviews[[url]]<-reviews.df
+
 
  
+}  
+colnames(reviews.df)<-c("Product Review", "Product Description")
+
+do.call(rbind, reviews.df)
+View(reviews.df)
+
+
+final_amazon_scrape<-cbind(prices_ratings,reviews.df)
+final_amazon_scrape
+
+```

@@ -1,2 +1,0 @@
-# R-Analytics
-Group Acitivity
